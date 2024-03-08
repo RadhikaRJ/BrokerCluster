@@ -38,9 +38,42 @@ public class BrokerNodeController {
 
     private Broker broker;
 
-    private String currentLeaderBrokerPrivateIP;
+    private String currentLeaderBrokerPrivateIP; // now will refer to public IPv4 address
     // Flag to track whether leader IP check is needed
     private boolean leaderIPCheckNeeded = true;
+
+    @PostConstruct
+    public void triggerRegistration() {
+        // Create a sample Broker object with necessary information
+        this.broker = new Broker();
+        // You may set other properties of the broker object as needed
+
+        // Trigger registration with the configuration server
+        System.out.println("Registering with coordinator server...");
+        registerWithConfigServer(this.broker);
+        currentLeaderBrokerPrivateIP = getLeaderPrivateIPFromConfigServer();
+
+        updateLeaderStatus();
+    }
+
+    // Update leader status based on current private IP
+    private void updateLeaderStatus() {
+        try {
+            if (currentLeaderBrokerPrivateIP != null && broker != null && broker.getIpAddress() != null
+                    && broker.getIpAddress().equals(currentLeaderBrokerPrivateIP)) {
+                broker.setLeader(true);
+                System.out.println("I am lead broker node");
+            } else {
+                if (broker != null) {
+                    broker.setLeader(false);
+                }
+
+                System.out.println("I am just a peer node in the broker cluster.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     @PostMapping("/register")
     public void registerWithConfigServer(@RequestBody Broker broker) {
@@ -49,9 +82,11 @@ public class BrokerNodeController {
             // broker.setIpAddress(InetAddress.getLocalHost().getHostAddress());//sets the
             // private IP address
             String privateIpAddress = EC2MetadataUtils.getInstanceInfo().getPrivateIp();
+            // // private IP of currrent EC2
+
             broker.setIpAddress(privateIpAddress);
-            broker.setPort(port); // Set the injected port
-            broker.setUniqueId(60);
+            broker.setPort(port); // Set the injected port 8080
+            broker.setUniqueId(30);
             // RestTemplate restTemplate = new RestTemplate();
 
             // Retrieve EC2 instance ID dynamically using AWS EC2 Metadata Service
@@ -91,20 +126,6 @@ public class BrokerNodeController {
         restTemplate.delete(configServerUrl + "/deregister-broker/" + uniqueId);
     }
 
-    @PostConstruct
-    public void triggerRegistration() {
-        // Create a sample Broker object with necessary information
-        this.broker = new Broker();
-        // You may set other properties of the broker object as needed
-
-        // Trigger registration with the configuration server
-        System.out.println("Registering with coordinator server...");
-        registerWithConfigServer(this.broker);
-        currentLeaderBrokerPrivateIP = getLeaderPrivateIPFromConfigServer();
-
-        updateLeaderStatus();
-    }
-
     // Method to handle POST request from config server to update leader's private
     // IP
 
@@ -128,24 +149,6 @@ public class BrokerNodeController {
      * updateLeaderStatus();
      * }
      */
-    // Update leader status based on current private IP
-    private void updateLeaderStatus() {
-        try {
-            if (currentLeaderBrokerPrivateIP != null && broker != null && broker.getIpAddress() != null
-                    && broker.getIpAddress().equals(currentLeaderBrokerPrivateIP)) {
-                broker.setLeader(true);
-                System.out.println("I am lead broker node");
-            } else {
-                if (broker != null) {
-                    broker.setLeader(false);
-                }
-
-                System.out.println("I am just a peer node in the broker cluster.");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 
     // Method to retrieve the private IP of the leader broker from config server
     private String getLeaderPrivateIPFromConfigServer() {
@@ -296,13 +299,13 @@ public class BrokerNodeController {
     @PreDestroy
     public void triggerDeregistration() {
         System.out.println("Deregistering from Coordinator Server...");
-        try {
-            if (broker != null) {
-                deregisterFromConfigServer(broker.getUniqueId());
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        // try {
+        // if (broker != null) {
+        // deregisterFromConfigServer(broker.getUniqueId());
+        // }
+        // } catch (Exception e) {
+        // e.printStackTrace();
+        // }
         // Deregister from the config server before the instance terminates
 
     }
